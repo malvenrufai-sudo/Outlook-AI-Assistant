@@ -1,4 +1,4 @@
-# Outlook AI Assistant — One-Click Setup for Windows
+# Outlook AI Assistant - One-Click Setup for Windows
 # Right-click this file > "Run with PowerShell"
 
 $ErrorActionPreference = "Stop"
@@ -37,18 +37,18 @@ try {
 
 # 3. Setup backend
 Write-Host "[3/5] Setting up backend..." -ForegroundColor Yellow
-Set-Location $PROJECT\backend
-if (!(Test-Path ".venv")) {
+Set-Location "$PROJECT\backend"
+if (-not (Test-Path ".venv")) {
     python -m venv .venv
     Write-Host "  Created virtual environment" -ForegroundColor Green
 }
-.venv\Scripts\python.exe -m pip install -r requirements.txt --quiet
+& ".venv\Scripts\python.exe" -m pip install -r requirements.txt --quiet
 Write-Host "  Backend dependencies installed" -ForegroundColor Green
 
 # 4. Setup frontend
 Write-Host "[4/5] Setting up frontend..." -ForegroundColor Yellow
-Set-Location $PROJECT\frontend
-if (!(Test-Path "node_modules")) {
+Set-Location "$PROJECT\frontend"
+if (-not (Test-Path "node_modules")) {
     npm install --prefer-offline 2>&1 | Out-Null
     Write-Host "  Frontend dependencies installed" -ForegroundColor Green
 }
@@ -56,32 +56,35 @@ if (!(Test-Path "node_modules")) {
 # 5. Configure .env
 Write-Host "[5/5] Configuring..." -ForegroundColor Yellow
 Set-Location $PROJECT
-if (!(Test-Path "$PROJECT\backend\.env")) {
-    Copy-Item "$PROJECT\backend\.env.example" "$PROJECT\backend\.env"
-    Write-Host "  Created .env — edit backend\.env with your LLM settings" -ForegroundColor Green
+$envPath = Join-Path $PROJECT "backend\.env"
+$examplePath = Join-Path $PROJECT "backend\.env.example"
+if (-not (Test-Path $envPath)) {
+    Copy-Item $examplePath $envPath
+    Write-Host "  Created .env - edit backend\.env with your LLM settings" -ForegroundColor Green
 } else {
     Write-Host "  .env already exists" -ForegroundColor Green
 }
 
 # Install dev certificate
 Write-Host "`nInstalling trusted certificate..." -ForegroundColor Yellow
+$certPath = Join-Path $PROJECT "frontend\cert.pem"
 try {
-    Import-Certificate -FilePath "$PROJECT\frontend\cert.pem" -CertStoreLocation Cert:\CurrentUser\Root -ErrorAction Stop | Out-Null
+    Import-Certificate -FilePath $certPath -CertStoreLocation Cert:\CurrentUser\Root -ErrorAction Stop | Out-Null
     Write-Host "  Certificate installed" -ForegroundColor Green
 } catch {
     Write-Host "  WARNING: Certificate install failed" -ForegroundColor Yellow
     Write-Host "  Run this command as Administrator:" -ForegroundColor Yellow
-    Write-Host "    Import-Certificate -FilePath '$PROJECT\frontend\cert.pem' -CertStoreLocation Cert:\LocalMachine\Root" -ForegroundColor Cyan
+    Write-Host "    Import-Certificate -FilePath '$certPath' -CertStoreLocation Cert:\LocalMachine\Root" -ForegroundColor Cyan
 }
 
 # Copy manifest
 Write-Host "`nInstalling Outlook manifest..." -ForegroundColor Yellow
-$addins = "$env:LOCALAPPDATA\Microsoft\Office\Addins"
-if (!(Test-Path $addins)) {
-    New-Item -ItemType Directory -Path $addins -Force | Out-Null
+$addinsPath = Join-Path $env:LOCALAPPDATA "Microsoft\Office\Addins"
+if (-not (Test-Path $addinsPath)) {
+    New-Item -ItemType Directory -Path $addinsPath -Force | Out-Null
 }
-Copy-Item "$PROJECT\manifest.xml" "$addins\manifest.xml" -Force
-Write-Host "  Manifest installed at: $addins" -ForegroundColor Green
+Copy-Item "$PROJECT\manifest.xml" "$addinsPath\manifest.xml" -Force
+Write-Host "  Manifest installed at: $addinsPath" -ForegroundColor Green
 
 Write-Host "`n========================================" -ForegroundColor Green
 Write-Host "  SETUP COMPLETE!" -ForegroundColor Green
