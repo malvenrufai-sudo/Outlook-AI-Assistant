@@ -1,18 +1,26 @@
 # Outlook AI Assistant — One-Click Setup for Windows
-# Run this in PowerShell (right-click > Run with PowerShell)
+# Right-click this file > "Run with PowerShell"
 
 $ErrorActionPreference = "Stop"
 $PROJECT = $PSScriptRoot
 
 Write-Host "=== Outlook AI Assistant Setup ===" -ForegroundColor Cyan
 
+# Check execution policy
+$policy = Get-ExecutionPolicy -Scope CurrentUser
+if ($policy -eq "Restricted") {
+    Write-Host "`nPowerShell is blocking scripts. Enabling..." -ForegroundColor Yellow
+    Set-ExecutionPolicy -Scope CurrentUser -ExecutionPolicy RemoteSigned -Force
+}
+
 # 1. Python check
 Write-Host "`n[1/5] Checking Python..." -ForegroundColor Yellow
 try {
     $py = & python --version 2>&1
-    Write-Host "  Found: $py" -ForegroundColor Green
+    Write-Host "  OK: $py" -ForegroundColor Green
 } catch {
-    Write-Host "  Python not found. Please install Python 3.11+ from https://python.org" -ForegroundColor Red
+    Write-Host "  MISSING: Python not found" -ForegroundColor Red
+    Write-Host "  Download from https://python.org (check 'Add to PATH')" -ForegroundColor Yellow
     exit 1
 }
 
@@ -20,9 +28,10 @@ try {
 Write-Host "[2/5] Checking Node.js..." -ForegroundColor Yellow
 try {
     $node = & node --version 2>&1
-    Write-Host "  Found: $node" -ForegroundColor Green
+    Write-Host "  OK: $node" -ForegroundColor Green
 } catch {
-    Write-Host "  Node.js not found. Please install from https://nodejs.org" -ForegroundColor Red
+    Write-Host "  MISSING: Node.js not found" -ForegroundColor Red
+    Write-Host "  Download from https://nodejs.org (LTS version)" -ForegroundColor Yellow
     exit 1
 }
 
@@ -33,32 +42,36 @@ if (!(Test-Path ".venv")) {
     python -m venv .venv
     Write-Host "  Created virtual environment" -ForegroundColor Green
 }
-.venv\Scripts\python.exe -m pip install -r requirements.txt
+.venv\Scripts\python.exe -m pip install -r requirements.txt --quiet
 Write-Host "  Backend dependencies installed" -ForegroundColor Green
 
 # 4. Setup frontend
 Write-Host "[4/5] Setting up frontend..." -ForegroundColor Yellow
 Set-Location $PROJECT\frontend
 if (!(Test-Path "node_modules")) {
-    npm install
+    npm install --prefer-offline 2>&1 | Out-Null
     Write-Host "  Frontend dependencies installed" -ForegroundColor Green
 }
 
 # 5. Configure .env
 Write-Host "[5/5] Configuring..." -ForegroundColor Yellow
+Set-Location $PROJECT
 if (!(Test-Path "$PROJECT\backend\.env")) {
     Copy-Item "$PROJECT\backend\.env.example" "$PROJECT\backend\.env"
-    Write-Host "  Created .env from template — edit it with your LLM settings" -ForegroundColor Green
+    Write-Host "  Created .env — edit backend\.env with your LLM settings" -ForegroundColor Green
+} else {
+    Write-Host "  .env already exists" -ForegroundColor Green
 }
 
 # Install dev certificate
 Write-Host "`nInstalling trusted certificate..." -ForegroundColor Yellow
 try {
-    Import-Certificate -FilePath "$PROJECT\frontend\cert.pem" -CertStoreLocation Cert:\CurrentUser\Root -ErrorAction Stop
+    Import-Certificate -FilePath "$PROJECT\frontend\cert.pem" -CertStoreLocation Cert:\CurrentUser\Root -ErrorAction Stop | Out-Null
     Write-Host "  Certificate installed" -ForegroundColor Green
 } catch {
-    Write-Host "  Certificate install failed (may need admin). Install manually:" -ForegroundColor Yellow
-    Write-Host "  Import-Certificate -FilePath '$PROJECT\frontend\cert.pem' -CertStoreLocation Cert:\LocalMachine\Root" -ForegroundColor Yellow
+    Write-Host "  WARNING: Certificate install failed" -ForegroundColor Yellow
+    Write-Host "  Run this command as Administrator:" -ForegroundColor Yellow
+    Write-Host "    Import-Certificate -FilePath '$PROJECT\frontend\cert.pem' -CertStoreLocation Cert:\LocalMachine\Root" -ForegroundColor Cyan
 }
 
 # Copy manifest
@@ -68,11 +81,16 @@ if (!(Test-Path $addins)) {
     New-Item -ItemType Directory -Path $addins -Force | Out-Null
 }
 Copy-Item "$PROJECT\manifest.xml" "$addins\manifest.xml" -Force
-Write-Host "  Manifest copied to $addins" -ForegroundColor Green
+Write-Host "  Manifest installed at: $addins" -ForegroundColor Green
 
-Write-Host "`n=== SETUP COMPLETE ===" -ForegroundColor Green
+Write-Host "`n========================================" -ForegroundColor Green
+Write-Host "  SETUP COMPLETE!" -ForegroundColor Green
+Write-Host "========================================" -ForegroundColor Green
+Write-Host ""
 Write-Host "Next steps:" -ForegroundColor Cyan
-Write-Host "1. Edit backend\.env with your LLM server details"
-Write-Host "2. Restart Outlook (if it was open)"
-Write-Host "3. Run 'start-backend.ps1' and 'start-frontend.ps1' to launch"
-Write-Host "4. Open an email in Outlook and click AI Assistant"
+Write-Host "  1. Edit backend\.env with your LLM server URL and API key"
+Write-Host "  2. Restart Outlook (if it was open)"
+Write-Host "  3. Run .\start-backend.ps1 in one PowerShell window"
+Write-Host "  4. Run .\start-frontend.ps1 in another PowerShell window"
+Write-Host "  5. Open an email in Outlook and click AI Assistant"
+Write-Host ""
